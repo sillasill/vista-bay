@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vista Bay — Open-World Crime Game</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0a1420;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #eef1f5; }
+  #gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #hud { position: fixed; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  #objective { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); max-width: 62%;
+    background: rgba(8,14,22,0.78); border: 1px solid rgba(255,255,255,0.25); border-radius: 8px;
+    padding: 8px 16px; font-size: 14px; font-weight: 600; text-align: center; display: none; }
+  #objective.show { display: block; }
+  #toast { position: fixed; top: 64px; left: 50%; transform: translateX(-50%);
+    background: rgba(20,90,50,0.9); border-radius: 8px; padding: 8px 16px; font-size: 14px;
+    font-weight: 600; display: none; }
+  #toast.show { display: block; }
+  #dialogue { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); width: min(620px, 88vw);
+    background: rgba(8,14,22,0.85); border: 1px solid rgba(255,255,255,0.25); border-left: 4px solid #ff4fa3;
+    border-radius: 8px; padding: 12px 16px; display: none; }
+  #dialogue.show { display: block; }
+  #dialogue-name { color: #ff8ac2; font-weight: 700; font-size: 13px; letter-spacing: 0.04em; margin-bottom: 4px; }
+  #dialogue-text { font-size: 15px; line-height: 1.45; }
+  #crosshair { position: fixed; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px;
+    display: none; pointer-events: none; }
+  #crosshair.show { display: block; }
+  #crosshair::before, #crosshair::after { content: ""; position: absolute; background: rgba(255,255,255,0.9);
+    box-shadow: 0 0 3px rgba(0,0,0,0.9); }
+  #crosshair::before { left: 8px; top: 0; width: 2px; height: 18px; }
+  #crosshair::after { top: 8px; left: 0; width: 18px; height: 2px; }
+  .overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    background: linear-gradient(180deg, rgba(6,12,20,0.62) 0%, rgba(6,12,20,0.78) 100%); z-index: 5; }
+  .overlay.show { display: flex; }
+  .panel { max-width: 640px; width: 90vw; text-align: center; padding: 28px 30px;
+    background: rgba(10,18,28,0.88); border: 1px solid rgba(255,255,255,0.22); border-radius: 14px; }
+  .panel h1 { margin: 0 0 4px; font-size: 56px; letter-spacing: 0.08em; color: #ffd21f;
+    text-shadow: 0 3px 0 #b3541e, 0 6px 18px rgba(0,0,0,0.6); }
+  .panel h2 { margin: 0 0 14px; font-size: 15px; letter-spacing: 0.28em; color: #9fd8ff; font-weight: 600; }
+  .panel h3 { margin: 0 0 10px; font-size: 30px; letter-spacing: 0.06em; }
+  .panel p { font-size: 15px; line-height: 1.55; color: #d5dde6; margin: 8px 0; }
+  .panel .controls { font-size: 13px; color: #9aa7b5; }
+  .panel .cashline { font-size: 14px; color: #ffd21f; font-weight: 700; min-height: 20px; }
+  .btn { display: inline-block; margin: 8px 6px 0; padding: 12px 26px; font-size: 16px; font-weight: 700;
+    color: #111; background: #ffd21f; border: none; border-radius: 8px; cursor: pointer; }
+  .btn:hover { background: #ffe14d; }
+  .btn.ghost { background: rgba(255,255,255,0.14); color: #eef1f5; border: 1px solid rgba(255,255,255,0.35); }
+  .btn.ghost:hover { background: rgba(255,255,255,0.24); }
+  #over-title.busted { color: #ff5a4d; }
+  #over-title.wasted { color: #ff8a3d; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
+</head>
+<body>
+<canvas id="gl" aria-label="Vista Bay: an open-world crime game. Drive, steal cars, run jobs for Marla Voss and stay ahead of the police."></canvas>
+<canvas id="hud"></canvas>
+<div id="objective" role="status"></div>
+<div id="toast" role="status"></div>
+<div id="dialogue"><div id="dialogue-name"></div><div id="dialogue-text"></div></div>
+<div id="crosshair"></div>
+
+<div id="start-screen" class="overlay">
+  <div class="panel">
+    <h1>VISTA BAY</h1>
+    <h2>AN OPEN-WORLD CRIME STORY</h2>
+    <p id="story-text"></p>
+    <p class="controls" id="controls-text"></p>
+    <p class="cashline" id="start-cash"></p>
+    <p class="cashline" id="start-cash-line"></p>
+    <div>
+      <button class="btn" id="start-btn">Start</button>
+      <button class="btn ghost" id="continue-btn">Continue</button>
+    </div>
+  </div>
+</div>
+
+<div id="pause-menu" class="overlay">
+  <div class="panel">
+    <h3>PAUSED</h3>
+    <p>Vista Bay waits for no one — except right now.</p>
+    <div>
+      <button class="btn" id="resume-btn">Resume</button>
+      <button class="btn ghost" id="save-btn">Save</button>
+      <button class="btn ghost" id="load-btn">Load</button>
+      <button class="btn ghost" id="restart-btn">Restart</button>
+      <button class="btn ghost" id="quit-btn">Quit to Title</button>
+    </div>
+  </div>
+</div>
+
+<div id="game-over" class="overlay">
+  <div class="panel">
+    <h3 id="over-title">BUSTED</h3>
+    <p id="over-line"></p>
+    <p class="cashline" id="over-stats"></p>
+    <div>
+      <button class="btn" id="again-btn">Try Again</button>
+      <button class="btn ghost" id="title-btn">Title Screen</button>
+    </div>
+  </div>
+</div>
+
+<p id="status" role="status" aria-live="polite"></p>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
